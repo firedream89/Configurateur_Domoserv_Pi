@@ -21,6 +21,8 @@ Window::Window(QWidget *parent) :
     connect(ui->bAddIp,SIGNAL(clicked(bool)),this,SLOT(AddIp()));
     connect(ui->bRemoveIp,SIGNAL(clicked(bool)),this,SLOT(DelIp()));
     connect(ui->bReload,SIGNAL(clicked(bool)),this,SLOT(Reload()));
+    connect(ui->actionAbout_Qt,SIGNAL(triggered()),qApp,SLOT(aboutQt()));
+    connect(ui->actionQuitter,SIGNAL(triggered()),this,SLOT(close()));
 }
 
 Window::~Window()

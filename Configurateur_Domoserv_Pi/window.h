@@ -19,13 +19,13 @@ class Window : public QMainWindow
     Q_OBJECT
 
 public:
-    explicit Window(QWidget *parent = 0);
+    explicit Window(QWidget *parent = nullptr);
     ~Window();
     QString Decrypt(QString text);
     QString Encrypt(QString text);
 
 public slots:
-    void Send_Data(QString data = 0);
+    void Send_Data(QString data = nullptr);
     void Receipt_Data();
     void Ready(bool reset = 0);
     void errorServer(QAbstractSocket::SocketError err);
