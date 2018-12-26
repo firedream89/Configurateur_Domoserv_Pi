@@ -324,13 +324,13 @@ void Window::UpdateData(bool reset)
         process++;
     }
     socket->waitForBytesWritten();
-    if(process == 6)
+    if(process == 7)
     {
         Send_Data("Config|Server;SETWebPort=" + QString::number(ui->eWebPort->value()));
         process++;
     }
     socket->waitForBytesWritten();
-    if(process == 7)
+    if(process == 8)
     {
         Send_Data("Config|Server;SETWebPassword=" + ui->eWebPassword->text());
         process++;
@@ -457,19 +457,19 @@ void Window::Send_Data(QString data)
 
 void Window::Receipt_Data()
 {
-    if (socket == 0)
+    qDebug() << "Receipt data";
+    if (socket == nullptr)
         return;
-
+    qDebug() << "Receipt data";
     QDataStream in(socket);
 
     if(dataSize == 0)
     {
         if(socket->bytesAvailable() < (int)sizeof(quint16))
              return;
-
         in >> dataSize;
     }
-
+qDebug() << "size ok" << socket->bytesAvailable() << dataSize;
     if(socket->bytesAvailable() < dataSize)
         return;
 
@@ -479,6 +479,7 @@ void Window::Receipt_Data()
     if(PKEY.isEmpty())
     {
         PKEY = data;
+        qDebug() << "PKEY : " + PKEY;
         ui->statusBar->showMessage("Connecté au serveur",15000);
         Ready();
     }
@@ -486,6 +487,7 @@ void Window::Receipt_Data()
     {
         ui->statusBar->showMessage("Terminé",5000);
         _dataResult = Decrypt(data);
+        qDebug() << "DataResult : " + _dataResult;
         Ready();
     }
 
