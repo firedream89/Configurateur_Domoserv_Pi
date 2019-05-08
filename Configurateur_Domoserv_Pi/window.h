@@ -36,6 +36,7 @@ public slots:
     void DelProg();
     void DelIp();
     void Reload();
+    void ReloadLog();
 
 private:
     QTcpSocket *socket;

@@ -23,6 +23,7 @@ Window::Window(QWidget *parent) :
     connect(ui->bReload,SIGNAL(clicked(bool)),this,SLOT(Reload()));
     connect(ui->actionAbout_Qt,SIGNAL(triggered()),qApp,SLOT(aboutQt()));
     connect(ui->actionQuitter,SIGNAL(triggered()),this,SLOT(close()));
+    connect(ui->bReloadLog,SIGNAL(clicked(bool)),this,SLOT(ReloadLog()));
 }
 
 Window::~Window()
@@ -46,217 +47,222 @@ void Window::Ready(bool reset)
     if(reset)
         process = 0;
 
-    if(process == 0)
+
+    if(_dataResult.contains("GETLog"))
     {
-        if(_dataResult.isEmpty())
+        ReloadLog();
+        return;
+    }
+    else if(_dataResult.contains("General;CVOrder"))//0
+    {
+
+        if(_dataResult.split("=").last().toInt() == 1)
         {
-            ui->statusBar->showMessage("Récupération etat gestionnaire chauffage depuis le serveur...");
-            Send_Data("Config|General;GETCVOrder");
+            ui->lInfoGeneral->setText("Gestionnaire chauffage : Actif\n");
+            ui->cCVOrder->setChecked(true);
+            ui->tab_2->setEnabled(true);
         }
         else
         {
-            if(_dataResult.split("=").last().toInt() == 1)
-            {
-                ui->lInfoGeneral->setText("Gestionnaire chauffage : Actif\n");
-                ui->cCVOrder->setChecked(true);
-                ui->tab_2->setEnabled(true);
-            }
-            else
-            {
-                ui->lInfoGeneral->setText("Gestionnaire chauffage : Inactif\n");
-                ui->cCVOrder->setChecked(false);
-                ui->tab_2->setEnabled(false);
-            }
-            _dataResult.clear();
-            process++;
-
+            ui->lInfoGeneral->setText("Gestionnaire chauffage : Inactif\n");
+            ui->cCVOrder->setChecked(false);
+            ui->tab_2->setEnabled(false);
         }
+        _dataResult.clear();
+        process++;
     }
-    if(ui->tab_2->isEnabled())
+    else if(_dataResult.contains("GETProg"))//1
     {
-        if(process == 1)
+        ui->lInfoCVOrder->setText("Programmation :\n");
+        QString zone1,zone2;
+        for(int i=0;i<_dataResult.split(";").count();i++)
         {
-            if(_dataResult.isEmpty())
+            QStringList date = _dataResult.split(";").at(i).split("#");
+            if(date.count() == 3)
             {
-                ui->statusBar->showMessage("Récupération programmation chauffage depuis le serveur...");
-                Send_Data("Config|CVOrder;GETProg");
-            }
-            else
-            {
+                QString state;
+                if(date.at(2).toInt() == confort)
+                    state = "Confort";
+                else if(date.at(2).toInt() == eco)
+                    state = "Eco";
+                else if(date.at(2).toInt() == horsGel)
+                    state = "Hors Gel";
+                else
+                    state = "Erreur";
 
-                ui->lInfoCVOrder->setText("Programmation :\n");
-                QString zone1,zone2;
-                for(int i=0;i<_dataResult.split(";").count();i++)
+                QString zone;
+                if(date.at(1).toInt() == 0)
+                    zone = "Zone 1";
+                else if(date.at(1).toInt() == 1)
+                    zone = "Zone 2";
+                else
+                    zone = "Erreur";
+
+                if(date.at(1).toInt() == 0)
+                    zone1 += date.at(0) + " " + state + "\n";
+                else if(date.at(1).toInt() == 1)
+                    zone2 += date.at(0) + " " + state + "\n";
+            }
+        }
+        ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + "Zone 1 :\n" +  zone1 + "\nZone 2 :\n" + zone2 + "\n");
+        _dataResult.clear();
+        process++;
+    }
+    else if(_dataResult.contains("GETConfig"))//2
+    {
+        QStringList result = _dataResult.split(";");
+        ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + "\nIp :\n");
+        for(int i=0;i<result.count();i++)
+        {
+            if(result.at(i).split("=").count() == 2)
+            {
+                if(result.at(i).contains("Priority"))
+                    ui->cPriority->setCurrentIndex(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("NetworkTimer"))
+                    ui->eTIp->setValue(result.at(i).split("=").last().toInt() / 1000);
+                else if(result.at(i).contains("IpPing"))
+                    ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + result.at(i).split("=").last() + "\n");
+                else if(result.at(i).contains("ActCPTEnergy"))
                 {
-                    QStringList date = _dataResult.split(";").at(i).split("#");
-                    if(date.count() == 3)
-                    {
-                        QString state;
-                        if(date.at(2).toInt() == confort)
-                            state = "Confort";
-                        else if(date.at(2).toInt() == eco)
-                            state = "Eco";
-                        else if(date.at(2).toInt() == horsGel)
-                            state = "Hors Gel";
-                        else
-                            state = "Erreur";
-
-                        QString zone;
-                        if(date.at(1).toInt() == 0)
-                            zone = "Zone 1";
-                        else if(date.at(1).toInt() == 1)
-                            zone = "Zone 2";
-                        else
-                            zone = "Erreur";
-
-                        if(date.at(1).toInt() == 0)
-                            zone1 += date.at(0) + " " + state + "\n";
-                        else if(date.at(1).toInt() == 1)
-                            zone2 += date.at(0) + " " + state + "\n";
-                    }
+                    ui->SetActCPTEnergy->setChecked(result.at(i).split("=").last().toInt());
+                    if(result.at(i).split("=").last().toInt() == 0)
+                        ui->ActCPTEnergy->setText("Non");
+                    else
+                        ui->ActCPTEnergy->setText("Oui");
                 }
-                ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + "Zone 1 :\n" +  zone1 + "\nZone 2 :\n" + zone2 + "\n");
-                _dataResult.clear();
-                process++;
-            }
-        }
-        if(process == 2)
-        {
-            if(_dataResult.isEmpty())
-            {
-                ui->statusBar->showMessage("Récupération config gestionnaire chauffage depuis le serveur...");
-                Send_Data("Config|CVOrder;GETConfig");
-            }
-            else
-            {
-                QStringList result = _dataResult.split(";");
-                ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + "\nIp :\n");
-                for(int i=0;i<result.count();i++)
+                else if(result.at(i).contains("ActHCCPTEnergy"))
                 {
-                    if(result.at(i).split("=").count() == 2)
-                    {
-                        if(result.at(i).contains("Priority"))
-                            ui->cPriority->setCurrentIndex(result.at(i).split("=").last().toInt());
-                        else if(result.at(i).contains("NetworkTimer"))
-                            ui->eTIp->setValue(result.at(i).split("=").last().toInt() / 1000);
-                        else if(result.at(i).contains("IpPing"))
-                            ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + result.at(i).split("=").last() + "\n");
-                    }
+                    ui->SetActHCCPTEnergy->setChecked(result.at(i).split("=").last().toInt());
+                    if(result.at(i).split("=").last().toInt() == 0)
+                        ui->ActHCCPTEnergy->setText("Non");
+                    else
+                        ui->ActHCCPTEnergy->setText("Oui");
                 }
-                _dataResult.clear();
-                process++;
-            }
-        }
-        if(process == 3)
-        {
-            if(_dataResult.isEmpty())
-            {
-                ui->statusBar->showMessage("Récupération GPIO Chauffage depuis le serveur...");
-                Send_Data("Config|CVOrder;GPIO");
-            }
-            else
-            {
-                QStringList result = _dataResult.split(";");
-
-                for(int i=0;i<result.count();i++)
+                else if(result.at(i).contains("ImpWattCPTEnergy"))
                 {
-                    if(result.at(i).contains("="))
-                    {
-                        if(result.at(i).contains("Z1Eco"))
-                            ui->gpioZ1Eco->setValue(result.at(i).split("=").last().toInt());
-                        else if(result.at(i).contains("Z1HG"))
-                            ui->gpioZ1HG->setValue(result.at(i).split("=").last().toInt());
-                        else if(result.at(i).contains("Z2Eco"))
-                            ui->gpioZ2Eco->setValue(result.at(i).split("=").last().toInt());
-                        else if(result.at(i).contains("Z2HG"))
-                            ui->gpioZ2HG->setValue(result.at(i).split("=").last().toInt());
-                        else if(result.at(i).contains("ReverseOnOff"))
-                            ui->reverseOnOff->setChecked(result.at(i).split("=").last().toInt());
-                    }
+                    ui->WattCPTEnergy->setText(result.at(i).split("=").last());
+                    ui->SetWattCPTEnergy->setValue(result.at(i).split("=").last().toInt());
                 }
-                _dataResult.clear();
-                process++;
+
             }
         }
+        _dataResult.clear();
+        process++;
     }
-    else
-        process = 4;
+    else if(_dataResult.contains("GPIO"))//3
+    {
+        QStringList result = _dataResult.split(";");
 
-    if(process == 4)
-    {
-        if(_dataResult.isEmpty())
+        for(int i=0;i<result.count();i++)
         {
-            ui->statusBar->showMessage("Récupération Port serveur depuis le serveur...");
-            Send_Data("Config|Server;GETPort");
+            if(result.at(i).contains("="))
+            {
+                if(result.at(i).contains("Z1Eco"))
+                    ui->gpioZ1Eco->setValue(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("Z1HG"))
+                    ui->gpioZ1HG->setValue(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("Z2Eco"))
+                    ui->gpioZ2Eco->setValue(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("Z2HG"))
+                    ui->gpioZ2HG->setValue(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("ReverseOnOff"))
+                    ui->reverseOnOff->setChecked(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("ImpCPTEnergy"))
+                    ui->reverseOnOff->setChecked(result.at(i).split("=").last().toInt());
+                else if(result.at(i).contains("HCCPTEnergy"))
+                    ui->reverseOnOff->setChecked(result.at(i).split("=").last().toInt());
+            }
         }
-        else
-        {
-            if(_dataResult.split("=").count() == 2)
-                ui->ePortServer->setValue(_dataResult.split("=").last().toInt());
-            _dataResult.clear();
-            process++;
-        }
+        _dataResult.clear();
+        process++;
     }
-    if(process == 5)
+    else if(_dataResult.contains("GETPort"))//4
     {
-        if(_dataResult.isEmpty())
-        {
-            ui->statusBar->showMessage("Récupération Password serveur depuis le serveur...");
-            Send_Data("Config|Server;GETPassword");
-        }
-        else
-        {
-            if(_dataResult.split("=").count() == 2)
-                ui->ePassword_2->setText(_dataResult.split("=").last());
-            _dataResult.clear();
-            process++;
-        }
+        if(_dataResult.split("=").count() == 2)
+            ui->ePortServer->setValue(_dataResult.split("=").last().toInt());
+        _dataResult.clear();
+        process++;
     }
-    if(process == 6)
+    else if(_dataResult.contains("GetPassword"))//5
     {
-        if(_dataResult.isEmpty())
-        {
-            ui->statusBar->showMessage("Récupération WebSocket depuis le serveur...");
-            Send_Data("Config|Server;GETWebSocket");
-        }
-        else
-        {
-            if(_dataResult.split("=").count() == 2)
-                ui->cWebSocket->setChecked(_dataResult.split("=").last().toInt());
-            _dataResult.clear();
-            process++;
-        }
+        if(_dataResult.split("=").count() == 2)
+            ui->ePassword_2->setText(_dataResult.split("=").last());
+        _dataResult.clear();
+        process++;
     }
-    if(process == 7)
+    else if(_dataResult.contains("GETUserSocket"))//6
     {
-        if(_dataResult.isEmpty())
-        {
-            ui->statusBar->showMessage("Récupération WebPort depuis le serveur...");
-            Send_Data("Config|Server;GETWebPort");
-        }
-        else
-        {
-            if(_dataResult.split("=").count() == 2)
-                ui->eWebPort->setValue(_dataResult.split("=").last().toInt());
-            _dataResult.clear();
-            process++;
-        }
+        if(_dataResult.split("=").count() == 2)
+            ui->cWebSocket->setChecked(_dataResult.split("=").last().toInt());
+        _dataResult.clear();
+        process++;
     }
-    if(process == 8)
+    else if(_dataResult.contains("GETAdminSocket"))//7
     {
-        if(_dataResult.isEmpty())
-        {
-            ui->statusBar->showMessage("Récupération Web Password depuis le serveur...");
-            Send_Data("Config|Server;GETWebPassword");
-        }
-        else
-        {
-            if(_dataResult.split("=").count() == 2)
-                ui->eWebPassword->setText(_dataResult.split("=").last());
-            _dataResult.clear();
-            process++;
-        }
+        if(_dataResult.split("=").count() == 2)
+            ui->cAdminSocket->setChecked(_dataResult.split("=").last().toInt());
+        _dataResult.clear();
+        process++;
     }
+    else if(_dataResult.contains("GETWebPort"))//8
+    {
+        if(_dataResult.split("=").count() == 2)
+            ui->eWebPort->setValue(_dataResult.split("=").last().toInt());
+        _dataResult.clear();
+        process++;
+    }
+    else if(_dataResult.contains("GetWebPassword"))//9
+    {
+        if(_dataResult.split("=").count() == 2)
+            ui->eWebPassword->setText(_dataResult.split("=").last());
+        _dataResult.clear();
+        process++;
+    }
+
+    switch (process) {
+    case 0:
+        ui->statusBar->showMessage("Récupération etat gestionnaire chauffage depuis le serveur...");
+        Send_Data("Config|General;GETCVOrder");
+        break;
+    case 1:
+        ui->statusBar->showMessage("Récupération programmation chauffage depuis le serveur...");
+        Send_Data("Config|CVOrder;GETProg");
+        break;
+    case 2:
+        ui->statusBar->showMessage("Récupération config gestionnaire chauffage depuis le serveur...");
+        Send_Data("Config|CVOrder;GETConfig");
+        break;
+    case 3:
+        ui->statusBar->showMessage("Récupération GPIO Chauffage depuis le serveur...");
+        Send_Data("Config|CVOrder;GPIO");
+        break;
+    case 4:
+        ui->statusBar->showMessage("Récupération Port serveur depuis le serveur...");
+        Send_Data("Config|Server;GETPort");
+        break;
+    case 5:
+        ui->statusBar->showMessage("Récupération Password serveur depuis le serveur...");
+        Send_Data("Config|Server;GETPassword");
+        break;
+    case 6:
+        ui->statusBar->showMessage("Récupération UserSocket depuis le serveur...");
+        Send_Data("Config|Server;GETUserSocket");
+        break;
+    case 7:
+        ui->statusBar->showMessage("Récupération AdminSocket depuis le serveur...");
+        Send_Data("Config|Server;GETAdminSocket");
+        break;
+    case 8:
+        ui->statusBar->showMessage("Récupération WebPort depuis le serveur...");
+        Send_Data("Config|Server;GETWebPort");
+        break;
+    case 9:
+        ui->statusBar->showMessage("Récupération Web Password depuis le serveur...");
+        Send_Data("Config|Server;GETWebPassword");
+        break;
+    }
+
+    qDebug() << process;
 }
 
 void Window::UpdateData(bool reset)
@@ -296,51 +302,103 @@ void Window::UpdateData(bool reset)
         int result(0);
         if(ui->cWebSocket->isChecked())
             result = 1;
-        Send_Data("Config|Server;SETWebSocket=" + QString::number(result));
+        Send_Data("Config|Server;SETUserSocket=" + QString::number(result));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 4)
     {
-        Send_Data("Config|CVOrder;SETConfig;Priority=" + QString::number(ui->cPriority->currentIndex()));
+
+        int result(0);
+        if(ui->cAdminSocket->isChecked())
+            result = 1;
+        Send_Data("Config|Server;SETAdminSocket=" + QString::number(result));
         process++;
     }
     socket->waitForBytesWritten();
     if(process == 5)
     {
-        Send_Data("Config|CVOrder;SETConfig;timerNetwork=" + QString::number(ui->eTIp->value()));
+        Send_Data("Config|CVOrder;SETConfig;Priority=" + QString::number(ui->cPriority->currentIndex()));
         process++;
     }
     socket->waitForBytesWritten();
     if(process == 6)
+    {
+        Send_Data("Config|CVOrder;SETConfig;timerNetwork=" + QString::number(ui->eTIp->value()));
+        process++;
+    }
+    socket->waitForBytesWritten();
+    if(process == 7)
     {
         QString result("Config|CVOrder;SETGPIO");
         result += ";Z1Eco=" + QString::number(ui->gpioZ1Eco->value());
         result += ";Z1HG=" + QString::number(ui->gpioZ1HG->value());
         result += ";Z2Eco=" + QString::number(ui->gpioZ2Eco->value());
         result += ";Z2HG=" + QString::number(ui->gpioZ2HG->value());
+        result += ";ImpCPTEnergy=" + QString::number(ui->gpioImpCPT->value());
+        result += ";HCCPTEnergy=" + QString::number(ui->gpioHCCPT->value());
 
         Send_Data(result);
         process++;
     }
     socket->waitForBytesWritten();
-    if(process == 7)
+    if(process == 8)
     {
         Send_Data("Config|Server;SETWebPort=" + QString::number(ui->eWebPort->value()));
         process++;
     }
     socket->waitForBytesWritten();
-    if(process == 8)
+    if(process == 9)
     {
         Send_Data("Config|Server;SETWebPassword=" + ui->eWebPassword->text());
         process++;
     }
+    socket->waitForBytesWritten();
+    if(process == 10)
+    {
+        QString checked = "0";
+        if(ui->SetActCPTEnergy->isChecked())
+            checked = "1";
+        Send_Data("Config|CVOrder;SETConfig;ActCPTEnergy=" + checked);
+        process++;
+    }
+    socket->waitForBytesWritten();
+    if(process == 11)
+    {
+        QString checked = "0";
+        if(ui->SetActHCCPTEnergy->isChecked())
+            checked = "1";
+        Send_Data("Config|CVOrder;SETConfig;ActHCCPTEnergy=" + checked);
+        process++;
+    }
+    if(process == 12)
+    {
+        Send_Data("Config|CVOrder;SETConfig;ImpWattCPTEnergy=" + QString::number(ui->SetWattCPTEnergy->value()));
+        process++;
+    }
+    socket->waitForBytesWritten();
     Ready(true);
 }
 
 void Window::Reload()
 {
     Send_Data("Reload|");
+}
+
+void Window::ReloadLog()
+{
+    if(qobject_cast<QPushButton *>(sender()) == nullptr)
+    {
+        ui->bReloadLog->setEnabled(true);
+        ui->log->clear();
+        _dataResult.replace("Config|General;GETLog=","");
+        ui->log->setText(_dataResult);
+        _dataResult.clear();
+    }
+    else
+    {
+        ui->bReloadLog->setEnabled(false);
+        Send_Data("Config|General;GETLog");
+    }
 }
 
 void Window::DelProg()
