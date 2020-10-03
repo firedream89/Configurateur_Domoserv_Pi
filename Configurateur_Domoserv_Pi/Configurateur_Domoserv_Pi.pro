@@ -29,4 +29,15 @@ SOURCES += main.cpp\
 
 HEADERS  += window.h
 
-FORMS    += window.ui
+FORMS    += window.ui \
+    connexion.ui
+
+unix:!macx: LIBS += -L$$PWD/../../../ServerFire/Client/Lib/Linux/ -lClient
+
+INCLUDEPATH += $$PWD/../../../ServerFire/Client/Lib/Linux
+DEPENDPATH += $$PWD/../../../ServerFire/Client/Lib/Linux
+
+unix:!macx: LIBS += -L$$PWD/../../../CryptoFire/Lib/Linux/ -lCryptoFire
+
+INCLUDEPATH += $$PWD/../../../CryptoFire/Lib/Linux
+DEPENDPATH += $$PWD/../../../CryptoFire/Lib/Linux

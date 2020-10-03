@@ -2,7 +2,10 @@
 #define WINDOW_H
 
 #include <QMainWindow>
-#include <QTcpSocket>
+#include <QObject>
+#include "../../../ServerFire/Client/src/client.h"
+#include <QDialog>
+#include "ui_connexion.h"
 
 enum order{
     confort,
@@ -21,14 +24,11 @@ class Window : public QMainWindow
 public:
     explicit Window(QWidget *parent = nullptr);
     ~Window();
-    QString Decrypt(QString text);
-    QString Encrypt(QString text);
 
 public slots:
-    void Send_Data(QString data = nullptr);
-    void Receipt_Data();
-    void Ready(bool reset = 0);
-    void errorServer(QAbstractSocket::SocketError err);
+    void Send_Data(QString data);
+    void Receipt_Data(QString data);
+    void Ready();
     void ConnectToHost();
     void UpdateData(bool reset = 0);
     void AddProg();
@@ -37,16 +37,21 @@ public slots:
     void DelIp();
     void Reload();
     void ReloadLog();
+    void ConnectDialog();
+    void GetConnection();
+    void GetData();
 
 private:
-    QTcpSocket *socket;
-    quint16 dataSize;
+    client *c;
     QString _dataResult;
-    QString PKEY = "";
     QString password;
-
-private:
     Ui::Window *ui;
+    Ui::Connexion *ui2;
+    QString ip;
+    int port;
+    int keySize;
+    int codeSize;
+    int charset;
 };
 
 #endif // WINDOW_H

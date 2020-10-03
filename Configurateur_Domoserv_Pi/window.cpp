@@ -7,14 +7,8 @@ Window::Window(QWidget *parent) :
 {
     ui->setupUi(this);
 
-    dataSize = 0;
-
-    ui->tabWidget->setVisible(false);
-    this->resize(this->width(),ui->formConnect->height());
-
     ui->statusBar->showMessage("Attente connexion...");
 
-    connect(ui->bConnect,SIGNAL(clicked(bool)),this,SLOT(ConnectToHost()));
     connect(ui->bUpdate,SIGNAL(clicked(bool)),this,SLOT(UpdateData()));
     connect(ui->bDelProg,SIGNAL(clicked(bool)),this,SLOT(DelProg()));
     connect(ui->bAddProg,SIGNAL(clicked(bool)),this,SLOT(AddProg()));
@@ -24,6 +18,8 @@ Window::Window(QWidget *parent) :
     connect(ui->actionAbout_Qt,SIGNAL(triggered()),qApp,SLOT(aboutQt()));
     connect(ui->actionQuitter,SIGNAL(triggered()),this,SLOT(close()));
     connect(ui->bReloadLog,SIGNAL(clicked(bool)),this,SLOT(ReloadLog()));
+
+    ConnectDialog();
 }
 
 Window::~Window()
@@ -31,22 +27,53 @@ Window::~Window()
     delete ui;
 }
 
-void Window::Ready(bool reset)
+void Window::ConnectDialog()
 {
-    if(ui->formConnect->isVisible())
-    {
-        this->resize(this->width(),ui->tabWidget->height());
-    }
+    QDialog *d = new QDialog(this);
+    d->setObjectName("connexion");
+    connect(d,&QDialog::accepted,this,&Window::GetConnection);
+    ui2 = new Ui::Connexion;
+    ui2->setupUi(d);
+    d->exec();
+}
 
-    ui->formConnect->setVisible(false);
+void Window::GetConnection()
+{
+    QDialog *d = this->findChild<QDialog*>("connexion");
+    if(d) {
+        ip = d->findChild<QLineEdit*>("eIp")->text();
+        port = d->findChild<QSpinBox*>("ePort")->value();
+        password = d->findChild<QLineEdit*>("ePassword")->text();
+        keySize = d->findChild<QSpinBox*>("eKeySize")->value();
+        codeSize = d->findChild<QSpinBox*>("eCodeSize")->value();
+        charset = d->findChild<QComboBox*>("eCharset")->currentIndex();
+
+        ConnectToHost();
+    }
+}
+
+void Window::GetData()
+{
+    ui->statusBar->showMessage("Updating data...");
+
+    Send_Data("Config|General;GETCVOrder");
+    Send_Data("Config|CVOrder;GETProg");
+    Send_Data("Config|CVOrder;GETConfig");
+    Send_Data("Config|CVOrder;GPIO");
+    Send_Data("Config|Server;GETPort");
+    Send_Data("Config|Server;GETPassword");
+    Send_Data("Config|Server;GETUserSocket");
+    Send_Data("Config|Server;GETAdminSocket");
+    Send_Data("Config|Server;GETWebPort");
+    Send_Data("Config|Server;GETWebPassword");
+    Send_Data("Config|Server;GetAdminCrypto");
+    Send_Data("Config|Server;GetUserCrypto");
+}
+
+void Window::Ready()
+{
     ui->tabWidget->setVisible(true);
     ui->tab->setEnabled(true);
-
-    static int process(0);
-
-    if(reset)
-        process = 0;
-
 
     if(_dataResult.contains("GETLog"))
     {
@@ -55,7 +82,6 @@ void Window::Ready(bool reset)
     }
     else if(_dataResult.contains("General;CVOrder"))//0
     {
-
         if(_dataResult.split("=").last().toInt() == 1)
         {
             ui->lInfoGeneral->setText("Gestionnaire chauffage : Actif\n");
@@ -69,7 +95,6 @@ void Window::Ready(bool reset)
             ui->tab_2->setEnabled(false);
         }
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETProg"))//1
     {
@@ -106,7 +131,6 @@ void Window::Ready(bool reset)
         }
         ui->lInfoCVOrder->setText(ui->lInfoCVOrder->text() + "Zone 1 :\n" +  zone1 + "\nZone 2 :\n" + zone2 + "\n");
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETConfig"))//2
     {
@@ -147,7 +171,6 @@ void Window::Ready(bool reset)
             }
         }
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GPIO"))//3
     {
@@ -174,103 +197,66 @@ void Window::Ready(bool reset)
             }
         }
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETPort"))//4
     {
         if(_dataResult.split("=").count() == 2)
             ui->ePortServer->setValue(_dataResult.split("=").last().toInt());
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GetPassword"))//5
     {
         if(_dataResult.split("=").count() == 2)
             ui->ePassword_2->setText(_dataResult.split("=").last());
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETUserSocket"))//6
     {
         if(_dataResult.split("=").count() == 2)
             ui->cWebSocket->setChecked(_dataResult.split("=").last().toInt());
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETAdminSocket"))//7
     {
         if(_dataResult.split("=").count() == 2)
             ui->cAdminSocket->setChecked(_dataResult.split("=").last().toInt());
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GETWebPort"))//8
     {
         if(_dataResult.split("=").count() == 2)
             ui->eWebPort->setValue(_dataResult.split("=").last().toInt());
         _dataResult.clear();
-        process++;
     }
     else if(_dataResult.contains("GetWebPassword"))//9
     {
         if(_dataResult.split("=").count() == 2)
             ui->eWebPassword->setText(_dataResult.split("=").last());
         _dataResult.clear();
-        process++;
     }
-
-    switch (process) {
-    case 0:
-        ui->statusBar->showMessage("Récupération etat gestionnaire chauffage depuis le serveur...");
-        Send_Data("Config|General;GETCVOrder");
-        break;
-    case 1:
-        ui->statusBar->showMessage("Récupération programmation chauffage depuis le serveur...");
-        Send_Data("Config|CVOrder;GETProg");
-        break;
-    case 2:
-        ui->statusBar->showMessage("Récupération config gestionnaire chauffage depuis le serveur...");
-        Send_Data("Config|CVOrder;GETConfig");
-        break;
-    case 3:
-        ui->statusBar->showMessage("Récupération GPIO Chauffage depuis le serveur...");
-        Send_Data("Config|CVOrder;GPIO");
-        break;
-    case 4:
-        ui->statusBar->showMessage("Récupération Port serveur depuis le serveur...");
-        Send_Data("Config|Server;GETPort");
-        break;
-    case 5:
-        ui->statusBar->showMessage("Récupération Password serveur depuis le serveur...");
-        Send_Data("Config|Server;GETPassword");
-        break;
-    case 6:
-        ui->statusBar->showMessage("Récupération UserSocket depuis le serveur...");
-        Send_Data("Config|Server;GETUserSocket");
-        break;
-    case 7:
-        ui->statusBar->showMessage("Récupération AdminSocket depuis le serveur...");
-        Send_Data("Config|Server;GETAdminSocket");
-        break;
-    case 8:
-        ui->statusBar->showMessage("Récupération WebPort depuis le serveur...");
-        Send_Data("Config|Server;GETWebPort");
-        break;
-    case 9:
-        ui->statusBar->showMessage("Récupération Web Password depuis le serveur...");
-        Send_Data("Config|Server;GETWebPassword");
-        break;
+    else if(_dataResult.contains("GetAdminCrypto")) {
+        if(_dataResult.split("=").count() == 2 && _dataResult.split("=").last().split(";").count() == 3) {
+            QStringList list = _dataResult.split("=").last().split(";");
+            ui->eAKeySize->setValue(list.at(0).toInt());
+            ui->eACodeSize->setValue(list.at(1).toInt());
+            ui->eACharFormat->setCurrentIndex(list.at(2).toInt());
+        }
     }
+    else if(_dataResult.contains("GetUserCrypto")) {
+        if(_dataResult.split("=").count() == 2 && _dataResult.split("=").last().split(";").count() == 3) {
+            QStringList list = _dataResult.split("=").last().split(";");
+            ui->eUKeySize->setValue(list.at(0).toInt());
+            ui->eUCodeSize->setValue(list.at(1).toInt());
+            ui->eUCharFormat->setCurrentIndex(list.at(2).toInt());
 
-    qDebug() << process;
+            ui->statusBar->showMessage("Done");
+        }
+    }
 }
 
 void Window::UpdateData(bool reset)
 {
     int process(0);
-
-    if(reset)
-        process = 0;
 
     if(process == 0)
     {
@@ -281,21 +267,18 @@ void Window::UpdateData(bool reset)
         Send_Data("Config|General;SETCVOrder=" + QString::number(result));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 1)
     {
 
         Send_Data("Config|Server;SETPassword=" + ui->ePassword_2->text());
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 2)
     {
 
         Send_Data("Config|Server;SETPort=" + QString::number(ui->ePortServer->value()));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 3)
     {
 
@@ -314,19 +297,16 @@ void Window::UpdateData(bool reset)
         Send_Data("Config|Server;SETAdminSocket=" + QString::number(result));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 5)
     {
         Send_Data("Config|CVOrder;SETConfig;Priority=" + QString::number(ui->cPriority->currentIndex()));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 6)
     {
         Send_Data("Config|CVOrder;SETConfig;timerNetwork=" + QString::number(ui->eTIp->value()));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 7)
     {
         QString result("Config|CVOrder;SETGPIO");
@@ -340,19 +320,16 @@ void Window::UpdateData(bool reset)
         Send_Data(result);
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 8)
     {
         Send_Data("Config|Server;SETWebPort=" + QString::number(ui->eWebPort->value()));
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 9)
     {
         Send_Data("Config|Server;SETWebPassword=" + ui->eWebPassword->text());
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 10)
     {
         QString checked = "0";
@@ -361,7 +338,6 @@ void Window::UpdateData(bool reset)
         Send_Data("Config|CVOrder;SETConfig;ActCPTEnergy=" + checked);
         process++;
     }
-    socket->waitForBytesWritten();
     if(process == 11)
     {
         QString checked = "0";
@@ -375,8 +351,20 @@ void Window::UpdateData(bool reset)
         Send_Data("Config|CVOrder;SETConfig;ImpWattCPTEnergy=" + QString::number(ui->SetWattCPTEnergy->value()));
         process++;
     }
-    socket->waitForBytesWritten();
-    Ready(true);
+    if(process == 13)
+    {
+        Send_Data(QString("Config|Server;SetAdminCrypto=%0;%1;%2").arg(ui->eAKeySize->value()).arg(ui->eACodeSize->value()).arg(ui->eACharFormat->currentIndex()));
+        process++;
+    }
+    if(process == 14)
+    {
+        Send_Data(QString("Config|Server;SetUserCrypto=%0;%1;%2").arg(ui->eUKeySize->value()).arg(ui->eUCodeSize->value()).arg(ui->eUCharFormat->currentIndex()));
+        process++;
+    }
+    if(process == 15 || reset)
+    {
+        process = 0;
+    }
 }
 
 void Window::Reload()
@@ -404,7 +392,7 @@ void Window::ReloadLog()
 void Window::DelProg()
 {
     Send_Data("Config|CVOrder;DELProg");
-    Ready(true);
+    Ready();
 }
 
 void Window::AddProg()
@@ -442,7 +430,7 @@ void Window::AddProg()
         result += ";2018-01-" + day.at(i) + " " + ui->hour->text() + "#" + zone + "#" + state;
 
     Send_Data(result);
-    Ready(true);
+    Ready();
 }
 
 void Window::AddIp()
@@ -455,7 +443,7 @@ void Window::AddIp()
                 ui->eAddIp->text().split(".").at(3).toInt() > 0 && ui->eAddIp->text().split(".").at(3).toInt() < 255)
         {
             Send_Data("Config|CVOrder;SETConfig;AddIpPing=" + ui->eAddIp->text());
-            Ready(true);
+            Ready();
         }
     }
 }
@@ -470,154 +458,29 @@ void Window::DelIp()
                 ui->eAddIp->text().split(".").at(3).toInt() > 0 && ui->eAddIp->text().split(".").at(3).toInt() < 255)
         {
             Send_Data("Config|CVOrder;SETConfig;RmIpPing=" + ui->eAddIp->text());
-            Ready(true);
+            Ready();
         }
     }
 }
 
 void Window::ConnectToHost()
 {
-    ui->bConnect->setEnabled(false);
-    ui->statusBar->showMessage("Connexion au serveur...");
-    socket = new QTcpSocket;
-    connect(socket,SIGNAL(error(QAbstractSocket::SocketError)),this,SLOT(errorServer(QAbstractSocket::SocketError)));
-    connect(socket,SIGNAL(connected()),this,SLOT(Send_Data()));
-    connect(socket,SIGNAL(readyRead()),this,SLOT(Receipt_Data()));
-    socket->connectToHost(ui->eIp->text(),ui->ePort->text().toInt());
-}
+    c = new client(client::Web,client::Admin,"ConfigDomoservApp");
+    connect(c,&client::Ready,this,&Window::GetData);
+    connect(c,&client::ReceiptData,this,&Window::Receipt_Data);
 
-void Window::errorServer(QAbstractSocket::SocketError err)
-{
-    ui->statusBar->showMessage("Erreur de connexion au serveur : " + socket->errorString(),15000);
-    ui->bConnect->setEnabled(true);
+    ui->statusBar->showMessage("Connexion au serveur...");
+    c->SetCrypto(keySize,codeSize,charset);
+    c->Connect(ip,port,password);
 }
 
 void Window::Send_Data(QString data)
 {
-    qDebug() << data;
-    if(data.isEmpty())
-        data = ui->ePassword->text();
-    QByteArray paquet;
-
-    QDataStream out(&paquet, QIODevice::WriteOnly);
-
-    out << (quint16) 0;
-    out << Encrypt(data);
-    out.device()->seek(0);
-    out << (quint16) (paquet.size() - sizeof(quint16));
-
-
-    if(PKEY.isEmpty())
-        ui->statusBar->showMessage("Authentification...");
-
-    socket->write(paquet);
+    c->SendToServer(data);
 }
 
-void Window::Receipt_Data()
+void Window::Receipt_Data(QString data)
 {
-    qDebug() << "Receipt data";
-    if (socket == nullptr)
-        return;
-    qDebug() << "Receipt data";
-    QDataStream in(socket);
-
-    if(dataSize == 0)
-    {
-        if(socket->bytesAvailable() < (int)sizeof(quint16))
-             return;
-        in >> dataSize;
-    }
-qDebug() << "size ok" << socket->bytesAvailable() << dataSize;
-    if(socket->bytesAvailable() < dataSize)
-        return;
-
-    QString data;
-    in >> data;
-
-    if(PKEY.isEmpty())
-    {
-        PKEY = data;
-        qDebug() << "PKEY : " + PKEY;
-        ui->statusBar->showMessage("Connecté au serveur",15000);
-        Ready();
-    }
-    else
-    {
-        ui->statusBar->showMessage("Terminé",5000);
-        _dataResult = Decrypt(data);
-        qDebug() << "DataResult : " + _dataResult;
-        Ready();
-    }
-
-    dataSize = 0;
-}
-
-QString Window::Encrypt(QString text)
-{
-    QString crypt;
-    QStringList k = PKEY.split(" ");
-    int idk(0);
-    for(int i = 0;i<text.count();i++)
-    {
-        if(idk == k.count())
-        {
-            idk = 0;
-        }
-        int t = text.at(i).unicode();
-        t -= k.at(idk).toInt();
-        if(t > 250)
-        {
-            t = t - 250;
-        }
-        else if(t < 0)
-        {
-            t = t + 250;
-        }
-        if(t == 34)//si '
-        {
-            t = 251;
-        }
-        else if(t == 39)//ou "
-        {
-            t = 252;
-        }
-        crypt += QChar(t).toLatin1();
-        idk++;
-    }
-    return crypt;
-}
-
-QString Window::Decrypt(QString text)
-{
-    QString decrypt;
-    QStringList k = PKEY.split(" ");
-    int idk(0);
-    for(int i = 0;i<text.count();i++)
-    {
-        if(idk == k.count())
-        {
-            idk = 0;
-        }
-        int t = text.at(i).unicode();
-        if(t == 251)//retour a '
-        {
-            t = 34;
-        }
-        else if(t == 252)//retour a "
-        {
-            t = 39;
-        }
-        t += k.at(idk).toInt();
-        if(t < 0)
-        {
-            t = t + 250;
-        }
-        else if(t > 250)
-        {
-            t = t - 250;
-        }
-        decrypt += QChar(t).toLatin1();
-        idk++;
-    }
-    return decrypt;
+    _dataResult = data;
+    Ready();
 }
